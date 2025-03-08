@@ -1,0 +1,26 @@
+---
+layout: post
+title:  "KVCache 的局限性"
+date:   2025-03-08
+categories: ml
+---
+
+今天看 KVCache 的原理一直有一个疑惑。
+
+假设我们有 4 个 token，分别为$tok_1$、$tok_2$、$tok_3$、$tok_4$，经过 embedding 后再通过 Attention 块，输出的是 4 个向量 $y_1$、$y_2$、$y_3$、$y_4$。这 4 个向量会输入到第二个 Attention 块中，然后再输出 4 个结果 $z_1$、$z_2$、$z_3$、$z_4$。当产生完下一个 token 也就是  $tok_5$ 后，根据 auto regressive 的性质，$tok_5$ 后重新被输入到这个模型中。
+
+很多资料都提到，KVCache 的原理是，下一个 token 生成后再输入回模型的时候，上一次迭代时的 KV 矩阵是可以复用的。也就是说，当我们生成完 $tok_5$ 的 query 即 $q_5$ 后，直接与上一次迭代生成的 $k_1$、$k_2$、$k_3$、$k_4$ 与 $v_1$、$v_2$、$v_3$、$v_4$ 的结果再运算即可得到相应输出。在第一层 Attention 中，这显然是没有问题的。但由于 $tok_5$ 的引入，之前的 $tok_1$ 到 $tok_4$ 的输出会不会有变化？如果一旦有变化，那么第二层 Attention 块之前缓存的 KV 就全部作废了😭。
+
+幸运的是，在大部分 LLM 中都是可以使用 KVCache 的！我们要知道，目前大多数的 LLM 都是采用的 Transformer decoder 结构（decoder 结构如下图所示）。
+
+<img src="/Users/foobar2077/Desktop/repos/lingsongfeng.github.io/static/Screenshot 2025-03-08 at 21.09.11.png" alt="Screenshot 2025-03-08 at 21.09.11" style="zoom: 25%;" />
+
+在这个结构中，我们使用的是 Masked Multi-Head Attention。这里的 mask 指的是，对于当前的 $tok_i$，在计算 Attention 时，它都无法看到之后的所有 token（ $tok_{i+1}$ 到 $tok_n$ ）。因为当前位置的 token 只能看到在它前面的 token，所以这一计算过程是具有**无后效性**的。
+
+但有的模型就没有这么幸运了，比如大名鼎鼎的 BERT，使用的是 Transformer encoder 结构（如下图所示）。
+
+<img src="/Users/foobar2077/Desktop/repos/lingsongfeng.github.io/static/Screenshot 2025-03-08 at 21.18.33.png" alt="Screenshot 2025-03-08 at 21.18.33" style="zoom:25%;" />
+
+普通的 Attention 块在计算当前 token 时，会参考所有 token 的 KV，因此在新的 tok_5 加入到序列中后再输入模型后，第一层 Attention 的输出会与上一次迭代的输出完全不同，从而导致第二层 Attention 上一次缓存的 所有 KV 全部失效。
+
+此外，positional embedding 也有可能导致 KVCache 的失效。
