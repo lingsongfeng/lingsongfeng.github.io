@@ -13,13 +13,13 @@ categories: ml
 
 幸运的是，在大部分 LLM 中都是可以使用 KVCache 的！我们要知道，目前大多数的 LLM 都是采用的 Transformer decoder 结构（decoder 结构如下图所示）。
 
-<img src="/Users/foobar2077/Desktop/repos/lingsongfeng.github.io/static/Screenshot 2025-03-08 at 21.09.11.png" alt="Screenshot 2025-03-08 at 21.09.11" style="zoom: 25%;" />
+<img src="https://lingsongfeng.github.io/static/Screenshot 2025-03-08 at 21.09.11.png" alt="Screenshot 2025-03-08 at 21.09.11" style="zoom: 25%;" />
 
 在这个结构中，我们使用的是 Masked Multi-Head Attention。这里的 mask 指的是，对于当前的 $tok_i$，在计算 Attention 时，它都无法看到之后的所有 token（ $tok_{i+1}$ 到 $tok_n$ ）。因为当前位置的 token 只能看到在它前面的 token，所以这一计算过程是具有**无后效性**的。
 
 但有的模型就没有这么幸运了，比如大名鼎鼎的 BERT，使用的是 Transformer encoder 结构（如下图所示）。
 
-<img src="/Users/foobar2077/Desktop/repos/lingsongfeng.github.io/static/Screenshot 2025-03-08 at 21.18.33.png" alt="Screenshot 2025-03-08 at 21.18.33" style="zoom:25%;" />
+<img src="https://lingsongfeng.github.io/static/Screenshot 2025-03-08 at 21.18.33.png" alt="Screenshot 2025-03-08 at 21.18.33" style="zoom:25%;" />
 
 普通的 Attention 块在计算当前 token 时，会参考所有 token 的 KV，因此在新的 tok_5 加入到序列中后再输入模型后，第一层 Attention 的输出会与上一次迭代的输出完全不同，从而导致第二层 Attention 上一次缓存的 所有 KV 全部失效。
 
